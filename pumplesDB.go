@@ -35,10 +35,11 @@ func createtables(db *sql.DB) {
 	fmt.Println("Cosa creada")
 	pumlbe_table = `CREATE TABLE saludos(
 	id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT ,
-	"Saludo" TEXT,
-	"ChatID" INT64 , 
-	"User_ID" TEXT,
-	"Enviado" INTEGER );`
+	"Greatings" TEXT,
+	"Receiver" TEXT,
+	"Receiver_User_ID" INT64,
+	"Sender" TEXT , 
+	"Sender_User_ID" INT64);`
 	query, err = db.Prepare(pumlbe_table)
 	if err != nil {
 		log.Fatal(err)
@@ -58,7 +59,7 @@ func insertPumples(db *sql.DB, cumple2 cumple) (int, error) {
 }
 
 func insertSaludos(db *sql.DB, saludo2 saludo) (int, error) {
-	res, err := db.Exec("INSERT INTO saludos VALUES (NULL,?,?,?,?;", saludo2.saludo, saludo2.ChatID, saludo2.User_ID, 0)
+	res, err := db.Exec("INSERT INTO saludos VALUES (NULL,?,?,?,?,?);", saludo2.saludo, saludo2.Receiver, saludo2.Receiver_User_ID, saludo2.Sender, saludo2.Sender_User_ID)
 	if err != nil {
 		return 0, err
 	}
@@ -88,8 +89,19 @@ func searchPumpleByUser(db *sql.DB, user string) (cumple, error) {
 	return rowData, err
 }
 
-func searchSaludos(db *sql.DB, username string) ([]saludo, error) {
-	rows, err := db.Query("SELECT Saludo,ChatID,User_ID FROM saludos WHERE User_ID=?", username)
+func alreadyAdded(db *sql.DB, receiver_ID int64, sender_id int64) (string, error) {
+	row := db.QueryRow("SELECT Greatings FROM saludos WHERE Receiver=? AND Sender=?", receiver_ID, sender_id)
+	var greating string
+	var err error
+	if err = row.Scan(&greating); err == sql.ErrNoRows {
+		log.Printf("No encontre el ID")
+		return "", err
+	}
+	return greating, err
+}
+
+func searchGreetings(db *sql.DB, Receiver_User_ID int64) ([]saludo, error) {
+	rows, err := db.Query("SELECT * FROM saludos WHERE Sender_User_ID=?", Receiver_User_ID)
 	if err != nil {
 		return nil, err
 	}
@@ -97,7 +109,25 @@ func searchSaludos(db *sql.DB, username string) ([]saludo, error) {
 	var saludos []saludo
 	for rows.Next() {
 		i := saludo{}
-		err = rows.Scan(&i.saludo, &i.ChatID, &i.User_ID)
+		err = rows.Scan(&i.saludo, &i.Receiver, &i.Receiver_User_ID, &i.Sender, &i.Sender_User_ID)
+		if err != nil {
+			return nil, err
+		}
+		saludos = append(saludos, i)
+	}
+	return saludos, nil
+}
+func searchLoadedGreetings(db *sql.DB, sender_User_ID int64) ([]saludo, error) {
+	rows, err := db.Query("SELECT * FROM saludos WHERE Sender_User_ID=?", sender_User_ID)
+	if err != nil {
+		return nil, err
+	}
+
+	var saludos []saludo
+	for rows.Next() {
+		i := saludo{}
+		var n int
+		err = rows.Scan(&n, &i.saludo, &i.Receiver, &i.Receiver_User_ID, &i.Sender, &i.Sender_User_ID)
 		if err != nil {
 			return nil, err
 		}
@@ -106,12 +136,21 @@ func searchSaludos(db *sql.DB, username string) ([]saludo, error) {
 	return saludos, nil
 }
 
-func writeSaludos(db *sql.DB, saludo string, username string) (int, error) {
-	res, err := db.Exec("UPDATE saludos SET saludo=? WHERE User_ID=?", saludo, username)
+func updateGreeting(db *sql.DB, saludo string, username string, chatID int64) (int, error) {
+	res, err := db.Exec("UPDATE saludos SET Greatings=? WHERE Receiver=? AND Sender_User_ID=?", saludo, username, chatID)
 	if err != nil {
 		return 0, err
 	}
 	res.LastInsertId()
 	return 0, err
 
+}
+
+func deleteGreetingDB(db *sql.DB, receiver string, sender_id int64) (int, error) {
+	res, err := db.Exec("DELETE FROM saludos WHERE Receiver=? AND Sender_User_ID=?;", receiver, sender_id)
+	if err != nil {
+		return 0, err
+	}
+	res.LastInsertId()
+	return 0, err
 }
